@@ -1,0 +1,23 @@
+[package]
+name = "proxyl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dirs = "5.0"
+notify = "5.1"
+regex = "1.8"
+rpassword = "7.2"
+toml = "0.7"
+
+[dependencies.clap]
+version = "4.3"
+features = ["derive"]
+
+[dependencies.hudsucker]
+version = "0.20"
+features = ["openssl-ca"]
+
+[dependencies.tokio]
+version = "1.28"
+features = ["macros", "signal", "rt-multi-thread"]
