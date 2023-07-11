@@ -58,12 +58,17 @@ impl Handler {
             )
             .unwrap();
 
-            if re.is_match(body_string)
+            if rule
+                .get("enabled")
+                .unwrap_or(&Value::Boolean(true))
+                .as_bool()
+                .unwrap()
                 && rule
-                    .get("enabled")
-                    .unwrap_or(&Value::Boolean(true))
-                    .as_bool()
+                    .get("url")
+                    .unwrap_or(&Value::String("".to_owned()))
+                    .as_str()
                     .unwrap()
+                    == parts.uri
                 && rule
                     .get("method")
                     .unwrap_or(&Value::String(parts.method.to_string()))
@@ -72,6 +77,7 @@ impl Handler {
                     .to_lowercase()
                     == parts.method.to_string().to_lowercase()
                 && check_headers(&parts.headers, rule)
+                && re.is_match(body_string)
             {
                 let m_rule = rule.to_owned();
                 rule_name = m_rule
@@ -87,15 +93,11 @@ impl Handler {
 
         let mut req = Request::from_parts(parts, Body::from(body_bytes));
         if let Some(rule) = matched_rule {
-            *req.uri_mut() = rule["redirect_to"].as_str().unwrap().parse().unwrap();
-
-            req.headers_mut().insert(
-                "z-proxy-rule",
-                HeaderValue::from_str(rule_name.as_str()).unwrap(),
-            );
-
-            req.headers_mut()
-                .insert("z-served-by", HeaderValue::from_static("proxyl"));
+            *req.uri_mut() = rule["redirect_to"]
+                .as_str()
+                .unwrap_or(req.uri().to_string().as_str())
+                .parse()
+                .unwrap();
 
             println!("Rule applied: {}", rule_name);
         }

@@ -1,5 +1,9 @@
 mod handler;
 
+use crate::types::error::ProxylError;
+use crate::types::Result;
+use crate::utils::{get_ca_certs_folder, get_config_folder};
+use handler::Handler;
 use hudsucker::certificate_authority::OpensslAuthority;
 use hudsucker::openssl::hash::MessageDigest;
 use hudsucker::openssl::pkey::PKey;
@@ -11,11 +15,6 @@ use std::fs;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use toml::{map::Map, Value};
-
-use crate::types::error::ProxylError;
-use crate::types::Result;
-use crate::utils::{get_ca_certs_folder, get_config_folder};
-use handler::Handler;
 
 fn rule_handler(value: Map<String, Value>) -> Map<String, Value> {
     let mut value = value;
@@ -34,7 +33,7 @@ fn rule_handler(value: Map<String, Value>) -> Map<String, Value> {
             let map = rule.as_table().unwrap().to_owned();
             let mut local_config = config
                 .get(config_name)
-                .expect("No such config found")
+                .unwrap_or(&Value::Table(Map::new()))
                 .as_table()
                 .unwrap()
                 .to_owned();
@@ -107,12 +106,16 @@ pub async fn call() -> Result<()> {
         .watch(&config_file, RecursiveMode::Recursive)
         .unwrap();
 
-    let private_key_bytes = std::fs::read(ca_folder.join("key.pem")).unwrap();
-    let ca_cert_bytes = std::fs::read(ca_folder.join("cert.pem")).unwrap();
+    let private_key_bytes =
+        std::fs::read(ca_folder.join("key.pem")).expect("Failed to find key.pem!");
+    let ca_cert_bytes =
+        std::fs::read(ca_folder.join("cert.pem")).expect("Failed to find cert.pem!");
     let private_key =
         PKey::private_key_from_pem_passphrase(&private_key_bytes, password.as_str().as_bytes())
             .expect("Failed to parse private key");
+
     println!("Authorized!");
+
     let ca_cert = X509::from_pem(&ca_cert_bytes).expect("Failed to parse CA certificate");
     let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
 
