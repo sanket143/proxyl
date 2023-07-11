@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-/// Proxy outgoing requests to other servers selectively
+/// Proxy outgoing requests to alternate servers with fine-grained control
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -15,11 +15,11 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Configure options for proxyl
-    Config {
-        #[arg(short, long, default_value_t = String::from("./cert.pem"))]
+    AddCertificate {
+        #[arg(short, long)]
         cert_path: String,
 
-        #[arg(short, long, default_value_t = String::from("./key.pem"))]
+        #[arg(short, long)]
         key_path: String,
     },
 

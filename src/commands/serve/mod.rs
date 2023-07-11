@@ -51,7 +51,7 @@ async fn shutdown_signal() {
         .expect("Failed to install CTRL+C signal handler");
 }
 
-pub async fn call() -> Result<()> {
+pub async fn call(port: u16) -> Result<()> {
     let ca_folder = get_ca_certs_folder();
     let config_folder = get_config_folder();
     let config_file = Arc::new(config_folder.join("config.toml"));
@@ -107,9 +107,8 @@ pub async fn call() -> Result<()> {
         .unwrap();
 
     let private_key_bytes =
-        std::fs::read(ca_folder.join("key.pem")).expect("Failed to find key.pem!");
-    let ca_cert_bytes =
-        std::fs::read(ca_folder.join("cert.pem")).expect("Failed to find cert.pem!");
+        std::fs::read(ca_folder.join("key.pem")).expect("Failed to find key.pem");
+    let ca_cert_bytes = std::fs::read(ca_folder.join("cert.pem")).expect("Failed to find cert.pem");
     let private_key =
         PKey::private_key_from_pem_passphrase(&private_key_bytes, password.as_str().as_bytes())
             .expect("Failed to parse private key");
@@ -119,12 +118,15 @@ pub async fn call() -> Result<()> {
     let ca_cert = X509::from_pem(&ca_cert_bytes).expect("Failed to parse CA certificate");
     let ca = OpensslAuthority::new(private_key, ca_cert, MessageDigest::sha256(), 1_000);
 
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let proxy = Proxy::builder()
-        .with_addr(SocketAddr::from(([127, 0, 0, 1], 8080)))
+        .with_addr(addr)
         .with_rustls_client()
         .with_ca(ca)
         .with_http_handler(handler)
         .build();
+
+    println!("Server running on {}", addr);
 
     if let Err(e) = proxy.start(shutdown_signal()).await {
         return Err(ProxylError::new(e));

@@ -64,7 +64,7 @@ impl Handler {
                 .as_bool()
                 .unwrap()
                 && rule
-                    .get("url")
+                    .get("uri")
                     .unwrap_or(&Value::String("".to_owned()))
                     .as_str()
                     .unwrap()
