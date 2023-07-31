@@ -14,7 +14,7 @@ jobs:
     - name: Install required target
       run: rustup target add aarch64-apple-darwin
     - name: Build Release
-      run: cargo build --verbose --release --target=aarch64-apple-darwin
+      run:  CFLAGS="-D__ARM_ARCH__" CC=clang RUSTFLAGS="-C linker=o64h-clang"  cargo build --verbose --release --target=aarch64-apple-darwin
     - name: Upload a Build Artifact (MacOS M1)
       uses: actions/upload-artifact@v3.1.2
       with:
