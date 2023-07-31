@@ -24,6 +24,7 @@ jobs:
         export CFLAGS="-D__ARM_ARCH__"
         export CC=clang
         export RUSTFLAGS="-C linker=o64h-clang"
+        export RUST_BACKTRACE=1
         cargo build --verbose --release --target=aarch64-apple-darwin
     - name: Upload a Build Artifact (MacOS M1)
       uses: actions/upload-artifact@v3.1.2
