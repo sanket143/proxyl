@@ -17,6 +17,10 @@ jobs:
         toolchain: stable
         default: true
         override: true
+    - name: Install necessary dependencies
+      run: |
+        brew install pkg-config
+        brew install glib
     - name: Install required target
       run: rustup target add aarch64-apple-darwin
     - name: Build project
