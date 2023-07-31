@@ -17,6 +17,7 @@ features = ["derive"]
 [dependencies.hudsucker]
 version = "0.20"
 features = ["openssl-ca"]
+git = "https://github.com/sanket143/hudsucker.git"
 
 [dependencies.tokio]
 version = "1.28"
