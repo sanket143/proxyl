@@ -18,6 +18,10 @@ features = ["derive"]
 version = "0.20"
 features = ["openssl-ca"]
 
+[dependencies.openssl]
+version = "0.10"
+features = ["vendored"]
+
 [dependencies.tokio]
 version = "1.28"
 features = ["macros", "signal", "rt-multi-thread"]
