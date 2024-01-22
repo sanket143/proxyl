@@ -45,7 +45,7 @@ impl Handler {
         let rules = self.rules.clone();
         let (parts, body) = req.into_parts();
         let body_bytes = body::to_bytes(body).await.unwrap();
-        let body_string = std::str::from_utf8(&body_bytes).unwrap();
+        let body_string = std::str::from_utf8(&body_bytes).unwrap_or("");
         let mut matched_rule: Option<Value> = None;
         let mut rule_name = String::from("NA");
 

@@ -18,6 +18,11 @@ use toml::{map::Map, Value};
 
 fn rule_handler(value: Map<String, Value>) -> Map<String, Value> {
     let mut value = value;
+
+    if value.is_empty() {
+        return value;
+    }
+
     let empty_table = Value::Table(Map::new());
     let config = value
         .get("config")
