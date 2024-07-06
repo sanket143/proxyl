@@ -72,3 +72,6 @@ body_re = "username=octacat"
 enabled = false
 ```
 </details>
+
+### NOTES
+- Make sure you mention port number in the uri. NOTE **443** in `https://example.com:443/api`
