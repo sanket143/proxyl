@@ -1,11 +1,12 @@
+use anyhow::Result;
+use http_body_util::BodyExt;
 use hudsucker::{
-    async_trait::async_trait,
+    decode_request,
     hyper::{
-        body,
         http::{HeaderMap, HeaderValue},
-        Body, Request,
+        Request,
     },
-    HttpContext, HttpHandler, RequestOrResponse,
+    Body, HttpContext, HttpHandler, RequestOrResponse,
 };
 use regex::Regex;
 use std::sync::{Arc, Mutex};
@@ -41,10 +42,12 @@ impl Handler {
         Self { rules }
     }
 
-    async fn get_updated_request(&self, req: Request<Body>) -> Request<Body> {
+    async fn get_updated_request(&self, req: Request<Body>) -> Result<Request<Body>> {
+        let req = decode_request(req)?;
         let rules = self.rules.clone();
         let (parts, body) = req.into_parts();
-        let body_bytes = body::to_bytes(body).await.unwrap();
+        let body_collected = body.collect().await?;
+        let body_bytes = body_collected.to_bytes();
         let body_string = std::str::from_utf8(&body_bytes).unwrap_or("");
         let mut matched_rule: Option<Value> = None;
         let mut rule_name = String::from("NA");
@@ -91,7 +94,8 @@ impl Handler {
             }
         }
 
-        let mut req = Request::from_parts(parts, Body::from(body_bytes));
+        let body: Body = body_string.to_owned().into();
+        let mut req = Request::from_parts(parts, body);
         if let Some(rule) = matched_rule {
             *req.uri_mut() = rule["redirect_to"]
                 .as_str()
@@ -102,17 +106,16 @@ impl Handler {
             println!("Rule applied: {}", rule_name);
         }
 
-        req
+        Ok(req)
     }
 }
 
-#[async_trait]
 impl HttpHandler for Handler {
     async fn handle_request(
         &mut self,
         _ctx: &HttpContext,
         req: Request<Body>,
     ) -> RequestOrResponse {
-        self.get_updated_request(req).await.into()
+        self.get_updated_request(req).await.unwrap().into()
     }
 }

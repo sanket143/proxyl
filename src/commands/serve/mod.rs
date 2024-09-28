@@ -50,12 +50,6 @@ fn rule_handler(value: Map<String, Value>) -> Map<String, Value> {
     rules.to_owned()
 }
 
-async fn shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Failed to install CTRL+C signal handler");
-}
-
 pub async fn call(port: u16) -> Result<()> {
     let ca_folder = get_ca_certs_folder();
     let config_folder = get_config_folder();
@@ -133,7 +127,7 @@ pub async fn call(port: u16) -> Result<()> {
 
     println!("Server running on {}", addr);
 
-    if let Err(e) = proxy.start(shutdown_signal()).await {
+    if let Err(e) = proxy.start().await {
         return Err(ProxylError::new(e));
     }
 

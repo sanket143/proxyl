@@ -5,17 +5,19 @@ edition = "2021"
 
 [dependencies]
 dirs = "5.0"
-notify = "5.1"
-regex = "1.8"
-rpassword = "7.2"
-toml = "0.7"
+notify = "6.1"
+regex = "1.10"
+rpassword = "7.3"
+toml = "0.8"
+anyhow = "1.0"
+http-body-util = "0.1"
 
 [dependencies.clap]
-version = "4.3"
+version = "4.5"
 features = ["derive"]
 
 [dependencies.hudsucker]
-version = "0.20"
+version = "0.22"
 features = ["openssl-ca"]
 
 [dependencies.openssl]
@@ -23,5 +25,5 @@ version = "0.10"
 features = ["vendored"]
 
 [dependencies.tokio]
-version = "1.28"
+version = "1.40"
 features = ["macros", "signal", "rt-multi-thread"]
