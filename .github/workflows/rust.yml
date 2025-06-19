@@ -1,39 +1,235 @@
-name: Rust
+name: Rust Cross-Platform CI/CD
 
 on:
-  workflow_dispatch
+  # Allows you to run this workflow manually from the Actions tab on GitHub.
+  workflow_dispatch:
+
+  # Triggers the workflow when a new tag is pushed (e.g., v1.0.0, v2.0.0-beta).
+  push:
+    tags:
+      - 'v*' # Matches any tag starting with 'v'
 
 env:
+  # Always show colored output from Cargo commands for better readability in logs.
   CARGO_TERM_COLOR: always
 
 jobs:
+  # The 'build' job compiles the Rust project for different targets.
   build:
-    runs-on: macos-latest
+    # Dynamically sets the job name based on the current matrix configuration.
+    name: Build for ${{ matrix.target }} on ${{ matrix.os }}
+
+    # Specifies the runner environment for each build.
+    runs-on: ${{ matrix.os }}
+
+    # The strategy defines a matrix of configurations for parallel job execution.
+    strategy:
+      # If one build fails, others will continue to run. Set to true if you want to stop all on first failure.
+      fail-fast: false
+      matrix:
+        # Define the different operating systems, Rust targets, desired asset names,
+        # platform-specific build flags, and executable extensions.
+        include:
+          # Linux x86_64 build
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset_name: proxyl-x86_64-unknown-linux-gnu
+            build_flags: "" # No special CFLAGS/CC for this target
+            ext: "" # No file extension
+
+          # Linux aarch64 (ARM64) build
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            asset_name: proxyl-aarch64-unknown-linux-gnu
+            build_flags: ""
+            ext: ""
+
+          # Windows x86_64 (MSVC toolchain) build
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset_name: proxyl-x86_64-pc-windows-msvc
+            build_flags: ""
+            ext: ".exe" # Windows executables have .exe extension
+
+          # macOS x86_64 build
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset_name: proxyl-x86_64-apple-darwin
+            build_flags: ""
+            ext: ""
+
+          # macOS aarch64 (Apple Silicon, e.g., M1/M2) build
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset_name: proxyl-aarch64-apple-darwin
+            # Specific flags often required for cross-compiling on macOS to ARM64
+            build_flags: |
+              export CFLAGS="-D__ARM_ARCH__"
+              export CC=clang
+            ext: ""
+
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Rust
+    - name: Checkout code
+      # Uses the actions/checkout@v3 action to fetch your repository's code.
+      uses: actions/checkout@v3
+
+    - name: Set up Rust toolchain
+      # Uses the actions-rs/toolchain@v1 action to set up the Rust environment.
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: stable
-        default: true
-        override: true
-    - name: Install necessary dependencies
+        toolchain: stable # Use the stable Rust toolchain.
+        default: true # Make this the default toolchain.
+        override: true # Override any existing toolchain.
+        target: ${{ matrix.target }} # Install the specific target for cross-compilation.
+
+    - name: Install macOS dependencies
+      # Conditional step: runs only if the runner OS is macOS.
+      if: runner.os == 'macOS'
       run: |
+        # Install common build dependencies using Homebrew.
         brew install pkg-config
         brew install glib
         brew install openssl@3.0
-    - name: Install required target
-      run: rustup target add aarch64-apple-darwin
-    - name: Build project
+
+    - name: Install Linux dependencies
+      # Conditional step: runs only if the runner OS is Linux.
+      if: runner.os == 'Linux'
       run: |
-        export CFLAGS="-D__ARM_ARCH__"
-        export CC=clang
-        export RUST_BACKTRACE=1
-        cargo build --verbose --release --target=aarch64-apple-darwin
-    - name: Upload a Build Artifact (MacOS M1)
+        # Update package lists and install build dependencies using apt.
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libssl-dev libglib2.0-dev
+
+    # Note: For Windows, Rust's build system and the MSVC toolchain often handle
+    # necessary dependencies like OpenSSL (e.g., via openssl-sys vendored feature)
+    # without explicit `apt-get` or `brew` commands.
+
+    - name: Build project
+      # Executes the cargo build command with release optimizations for the specified target.
+      run: |
+        # Apply platform-specific environment variables/flags if defined in the matrix.
+        ${{ matrix.build_flags }}
+        # Build the project in release mode for the current matrix target.
+        cargo build --verbose --release --target=${{ matrix.target }}
+
+    - name: Rename executable
+      # Renames the compiled binary to a more descriptive name including the target.
+      shell: bash # Ensures bash is used for consistent shell commands across OSes.
+      run: |
+        # Define the directory where the executable is located.
+        BINARY_DIR="./target/${{ matrix.target }}/release"
+        # Original name of the executable (e.g., 'proxyl' or 'proxyl.exe').
+        ORIGINAL_EXECUTABLE_NAME="proxyl${{ matrix.ext }}"
+        # Desired final name for the executable (e.g., 'proxyl-x86_64-unknown-linux-gnu').
+        FINAL_EXECUTABLE_NAME="${{ matrix.asset_name }}${{ matrix.ext }}"
+
+        # Check if the original executable exists before renaming.
+        if [ -f "$BINARY_DIR/$ORIGINAL_EXECUTABLE_NAME" ]; then
+          # Move (rename) the executable.
+          mv "$BINARY_DIR/$ORIGINAL_EXECUTABLE_NAME" "$BINARY_DIR/$FINAL_EXECUTABLE_NAME"
+          echo "Renamed $ORIGINAL_EXECUTABLE_NAME to $FINAL_EXECUTABLE_NAME"
+        else
+          echo "Error: Executable not found at $BINARY_DIR/$ORIGINAL_EXECUTABLE_NAME"
+          exit 1
+        fi
+
+    - name: Upload build artifact
+      # Uploads the compiled binary as a GitHub Actions artifact.
+      # These artifacts are temporary and will be downloaded by the 'release' job.
       uses: actions/upload-artifact@v3.1.2
       with:
-        name: Build MacOS
-        path: ./target/aarch64-apple-darwin/release/proxyl
-        retention-days: 1
+        # The artifact name will match the asset name for easy identification.
+        name: ${{ matrix.asset_name }}
+        # Path to the renamed executable.
+        path: ./target/${{ matrix.target }}/release/${{ matrix.asset_name }}${{ matrix.ext }}
+        # Retain the artifact for 7 days.
+        retention-days: 7
 
+  # The 'release' job creates a GitHub Release and uploads the binaries as assets.
+  release:
+    name: Create GitHub Release and Upload Assets
+    # Runs on a standard Ubuntu runner.
+    runs-on: ubuntu-latest
+    # This job only runs if the workflow was triggered by a tag push.
+    if: startsWith(github.ref, 'refs/tags/')
+    # This job depends on ALL 'build' jobs completing successfully.
+    needs: build
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Get tag name
+      # Extracts the actual tag name (e.g., 'v1.0.0' from 'refs/tags/v1.0.0').
+      id: get_tag
+      run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+    - name: Create GitHub Release
+      # Uses the actions/create-release@v1 action to create a new release.
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        # GITHUB_TOKEN is a special token provided by GitHub Actions with permissions
+        # to create releases and upload assets.
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.TAG_NAME }} # The tag name for the release.
+        release_name: Release ${{ env.TAG_NAME }} # The name displayed for the release.
+        body: | # Markdown content for the release description.
+          Automated release for version ${{ env.TAG_NAME }}.
+          See assets below for various platforms.
+        draft: false # Set to true to create a draft release (not published immediately).
+        prerelease: false # Set to true for a pre-release.
+
+    - name: Download all build artifacts
+      # Downloads all artifacts uploaded by the 'build' jobs into a local directory.
+      uses: actions/download-artifact@v3.2.0
+      with:
+        # All artifacts will be downloaded into subdirectories within './artifacts',
+        # with each subdirectory named after the artifact's original name.
+        path: ./artifacts
+
+    - name: Install GitHub CLI
+      # The GitHub CLI (gh) is used for robust asset uploading to the release.
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gh
+
+    - name: Upload Release Assets
+      # Loops through the expected artifact names and uploads each as a release asset.
+      env:
+        # The GITHUB_TOKEN is passed as GH_TOKEN for the GitHub CLI.
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG_NAME: ${{ env.TAG_NAME }} # Pass tag name to the script
+
+      run: |
+        ARTIFACTS_DIR="./artifacts" # The directory where artifacts were downloaded.
+
+        # Define a map of artifact names to their expected file names
+        # This helps in locating the downloaded files which are in subdirectories
+        # named after the artifact name.
+        declare -A asset_map
+        asset_map["proxyl-x86_64-unknown-linux-gnu"]="proxyl-x86_64-unknown-linux-gnu"
+        asset_map["proxyl-aarch64-unknown-linux-gnu"]="proxyl-aarch64-unknown-linux-gnu"
+        asset_map["proxyl-x86_64-pc-windows-msvc"]="proxyl-x86_64-pc-windows-msvc.exe"
+        asset_map["proxyl-x86_64-apple-darwin"]="proxyl-x86_64-apple-darwin"
+        asset_map["proxyl-aarch64-apple-darwin"]="proxyl-aarch64-apple-darwin"
+
+        # Iterate over the defined asset names.
+        for ARTIFACT_NAME in "${!asset_map[@]}"; do
+            # Get the expected local file name from the map.
+            LOCAL_FILE_NAME="${asset_map[$ARTIFACT_NAME]}"
+            # Construct the full path to the downloaded artifact.
+            # download-artifact creates a directory for each artifact name.
+            ARTIFACT_PATH="$ARTIFACTS_DIR/$ARTIFACT_NAME/$LOCAL_FILE_NAME"
+
+            # Check if the artifact file exists before attempting to upload.
+            if [ -f "$ARTIFACT_PATH" ]; then
+                echo "Uploading asset: $ARTIFACT_PATH as $LOCAL_FILE_NAME"
+                # Use 'gh release upload' to attach the file to the GitHub Release.
+                # '--clobber' allows overwriting if an asset with the same name already exists.
+                # '--asset-name' sets the name of the asset on GitHub.
+                gh release upload "$TAG_NAME" "$ARTIFACT_PATH" --clobber --asset-name "$LOCAL_FILE_NAME"
+            else
+                echo "Warning: Artifact not found at $ARTIFACT_PATH. Skipping upload for $ARTIFACT_NAME."
+            fi
+        done
