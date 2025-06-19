@@ -135,7 +135,7 @@ jobs:
     - name: Upload build artifact
       # Uploads the compiled binary as a GitHub Actions artifact.
       # These artifacts are temporary and will be downloaded by the 'release' job.
-      uses: actions/upload-artifact@v3.1.2
+      uses: actions/upload-artifact@v4 # Updated to v4
       with:
         # The artifact name will match the asset name for easy identification.
         name: ${{ matrix.asset_name }}
@@ -182,7 +182,7 @@ jobs:
 
     - name: Download all build artifacts
       # Downloads all artifacts uploaded by the 'build' jobs into a local directory.
-      uses: actions/download-artifact@v3.2.0
+      uses: actions/download-artifact@v4 # Updated to v4
       with:
         # All artifacts will be downloaded into subdirectories within './artifacts',
         # with each subdirectory named after the artifact's original name.
