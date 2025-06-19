@@ -31,7 +31,7 @@ jobs:
         # platform-specific build flags, and executable extensions.
         include:
           # Linux x86_64 build
-          - os: ubuntu-latest
+          - os: ubuntu-22.04 # Changed from ubuntu-latest for better stability
             target: x86_64-unknown-linux-gnu
             asset_name: proxyl-x86_64-unknown-linux-gnu
             build_flags: "" # No special CFLAGS/CC for this target
@@ -39,7 +39,7 @@ jobs:
             linux_deps_arch: "" # No specific architecture for dependencies
 
           # Linux aarch64 (ARM64) build
-          - os: ubuntu-latest
+          - os: ubuntu-22.04 # Changed from ubuntu-latest for better stability
             target: aarch64-unknown-linux-gnu
             asset_name: proxyl-aarch64-unknown-linux-gnu
             build_flags: ""
