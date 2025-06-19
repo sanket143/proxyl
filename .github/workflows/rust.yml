@@ -114,21 +114,31 @@ jobs:
           sudo rm -rf /var/lib/apt/lists/*
           sudo rm -rf /etc/apt/sources.list.d/* # Remove potentially conflicting entries
 
-          # Recreate /etc/apt/sources.list with explicit multi-arch for common repositories
-          # Including all standard components (main, restricted, universe, multiverse, security)
-          echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list > /dev/null
-          echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
-          echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+          # Recreate /etc/apt/sources.list with explicit multi-arch support,
+          # using ports.ubuntu.com for arm64 repositories.
+          echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+          
+          echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+          
+          echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+
+          # Backports are often not critical for core dependencies and are frequently a source of 404s for ARM builds,
+          # so they are omitted for arm64 to enhance stability. Add them back if specifically needed and errors persist.
+          echo "deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
         fi
         
         # Update package lists (will use the modified sources.list for arm64 builds)
         sudo apt-get update
 
         # Install common build dependencies and cross-compilation tools
-        sudo apt-get install -y pkg-config libssl-dev libglib2.0-dev
+        sudo apt-get install -y pkg-config libglib2.0-dev
         
-        # Install AArch64 cross-compilation tools and their dev libraries
-        # libssl-dev:arm64 might be less critical if openssl is vendored, but kept for other potential dependencies.
+        # Install AArch64 specific cross-compilation tools and their dev libraries
+        # libssl-dev:arm64 is still included in case other dependencies require it,
+        # but openssl-sys should be handled by the vendored feature.
         if [ "${{ matrix.linux_deps_arch }}" = "arm64" ]; then
           sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross libssl-dev:arm64 pkg-config:arm64
         fi
