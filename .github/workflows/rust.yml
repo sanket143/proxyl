@@ -36,6 +36,7 @@ jobs:
             asset_name: proxyl-x86_64-unknown-linux-gnu
             build_flags: "" # No special CFLAGS/CC for this target
             ext: "" # No file extension
+            linux_deps_arch: "" # No specific architecture for dependencies
 
           # Linux aarch64 (ARM64) build
           - os: ubuntu-latest
@@ -43,6 +44,7 @@ jobs:
             asset_name: proxyl-aarch64-unknown-linux-gnu
             build_flags: ""
             ext: ""
+            linux_deps_arch: "arm64" # Specific architecture for dependencies
 
           # Windows x86_64 (MSVC toolchain) build
           - os: windows-latest
@@ -50,6 +52,7 @@ jobs:
             asset_name: proxyl-x86_64-pc-windows-msvc
             build_flags: ""
             ext: ".exe" # Windows executables have .exe extension
+            linux_deps_arch: "" # Not applicable for Windows
 
           # macOS x86_64 build
           - os: macos-latest
@@ -57,6 +60,7 @@ jobs:
             asset_name: proxyl-x86_64-apple-darwin
             build_flags: ""
             ext: ""
+            linux_deps_arch: "" # Not applicable for macOS
 
           # macOS aarch64 (Apple Silicon, e.g., M1/M2) build
           - os: macos-latest
@@ -67,6 +71,7 @@ jobs:
               export CFLAGS="-D__ARM_ARCH__"
               export CC=clang
             ext: ""
+            linux_deps_arch: "" # Not applicable for macOS
 
     steps:
     - name: Checkout code
@@ -95,13 +100,38 @@ jobs:
       # Conditional step: runs only if the runner OS is Linux.
       if: runner.os == 'Linux'
       run: |
-        # Update package lists and install build dependencies using apt.
+        # Update package lists
         sudo apt-get update
-        sudo apt-get install -y pkg-config libssl-dev libglib2.0-dev gcc-aarch64-linux-gnu
+        # Add required architectures for multi-arch support if necessary
+        # This is crucial for installing aarch64 versions of libraries on an x86_64 host
+        if [ "${{ matrix.linux_deps_arch }}" = "arm64" ]; then
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+        fi
+
+        # Install common build dependencies and cross-compilation tools
+        sudo apt-get install -y pkg-config libssl-dev libglib2.0-dev
+        
+        # Install AArch64 cross-compilation tools and their dev libraries
+        if [ "${{ matrix.linux_deps_arch }}" = "arm64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross libssl-dev:arm64 pkg-config:arm64
+        fi
 
     # Note: For Windows, Rust's build system and the MSVC toolchain often handle
     # necessary dependencies like OpenSSL (e.g., via openssl-sys vendored feature)
     # without explicit `apt-get` or `brew` commands.
+
+    - name: Set up Linux AArch64 cross-compilation environment variables
+      # Conditional step: runs only for the Linux AArch64 target.
+      if: runner.os == 'Linux' && matrix.target == 'aarch64-unknown-linux-gnu'
+      run: |
+        # Set linker for the AArch64 target
+        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        # Set PKG_CONFIG_SYSROOT_DIR to point to the AArch64 sysroot for finding libraries
+        echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
+        # Set PKG_CONFIG_PATH for aarch64-linux-gnu to find pkg-config files
+        echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
+
 
     - name: Build project
       # Executes the cargo build command with release optimizations for the specified target.
