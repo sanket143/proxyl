@@ -100,18 +100,23 @@ jobs:
       # Conditional step: runs only if the runner OS is Linux.
       if: runner.os == 'Linux'
       run: |
-        # Update package lists
-        sudo apt-get update
-        
         # Add required architectures for multi-arch support if necessary
         # This is crucial for installing aarch64 versions of libraries on an x86_64 host
         if [ "${{ matrix.linux_deps_arch }}" = "arm64" ]; then
           sudo dpkg --add-architecture arm64
-          # Explicitly add arm64 architecture to sources.list for relevant repositories
-          # This helps apt-get update find the correct package lists for arm64
-          sudo sed -i 's/deb http/deb [arch=amd64,arm64] http/g' /etc/apt/sources.list
-          sudo apt-get update
+          
+          # Clean existing package lists to ensure fresh download
+          sudo rm -rf /var/lib/apt/lists/*
+
+          # Recreate /etc/apt/sources.list with explicit multi-arch for common repositories
+          echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list > /dev/null
+          echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+          echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
+          # Removed backports as it was a source of 404s and might not be strictly necessary for core dependencies.
         fi
+        
+        # Update package lists (will use the modified sources.list for arm64 builds)
+        sudo apt-get update
 
         # Install common build dependencies and cross-compilation tools
         sudo apt-get install -y pkg-config libssl-dev libglib2.0-dev
@@ -134,7 +139,7 @@ jobs:
         # Set PKG_CONFIG_SYSROOT_DIR to point to the AArch64 sysroot for finding libraries
         echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
         # Set PKG_CONFIG_PATH for aarch64-linux-gnu to find pkg-config files
-        echo "PKG_CONFIG_PATH=/usr/lib/aarch664-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV # Corrected typo in PKG_CONFIG_PATH
+        echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
 
     - name: Build project
       # Executes the cargo build command with release optimizations for the specified target.
@@ -159,7 +164,7 @@ jobs:
         if [ -f "$BINARY_DIR/$ORIGINAL_EXECUTABLE_NAME" ]; then
           # Move (rename) the executable.
           mv "$BINARY_DIR/$ORIGINAL_EXECUTABLE_NAME" "$BINARY_DIR/$FINAL_EXECUTABLE_NAME"
-          echo "Renamed $ORIGENAL_EXECUTABLE_NAME to $FINAL_EXECUTABLE_NAME"
+          echo "Renamed $ORIGINAL_EXECUTABLE_NAME to $FINAL_EXECUTABLE_NAME"
         else
           echo "Error: Executable not found at $BINARY_DIR/$ORIGINAL_EXECUTABLE_NAME"
           exit 1
