@@ -37,6 +37,7 @@ jobs:
             build_flags: "" # No special CFLAGS/CC for this target
             ext: "" # No file extension
             linux_deps_arch: "" # No specific architecture for dependencies
+            cargo_features: "" # No specific features needed
 
           # Linux aarch64 (ARM64) build
           - os: ubuntu-22.04 # Changed from ubuntu-latest for better stability
@@ -45,6 +46,7 @@ jobs:
             build_flags: ""
             ext: ""
             linux_deps_arch: "arm64" # Specific architecture for dependencies
+            cargo_features: "--features openssl/vendored" # Use vendored OpenSSL for AArch64 Linux
 
           # Windows x86_64 (MSVC toolchain) build
           - os: windows-latest
@@ -53,6 +55,7 @@ jobs:
             build_flags: ""
             ext: ".exe" # Windows executables have .exe extension
             linux_deps_arch: "" # Not applicable for Windows
+            cargo_features: "" # No specific features needed
 
           # macOS x86_64 build
           - os: macos-latest
@@ -61,6 +64,7 @@ jobs:
             build_flags: ""
             ext: ""
             linux_deps_arch: "" # Not applicable for macOS
+            cargo_features: "" # No specific features needed
 
           # macOS aarch64 (Apple Silicon, e.g., M1/M2) build
           - os: macos-latest
@@ -72,6 +76,7 @@ jobs:
               export CC=clang
             ext: ""
             linux_deps_arch: "" # Not applicable for macOS
+            cargo_features: "" # No specific features needed
 
     steps:
     - name: Checkout code
@@ -105,14 +110,15 @@ jobs:
         if [ "${{ matrix.linux_deps_arch }}" = "arm64" ]; then
           sudo dpkg --add-architecture arm64
           
-          # Clean existing package lists to ensure fresh download
+          # Clean existing package lists and sources.list.d entries
           sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /etc/apt/sources.list.d/* # Remove potentially conflicting entries
 
           # Recreate /etc/apt/sources.list with explicit multi-arch for common repositories
+          # Including all standard components (main, restricted, universe, multiverse, security)
           echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list > /dev/null
           echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
           echo "deb [arch=amd64,arm64] http://archive.ubuntu.com/ubuntu/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list > /dev/null
-          # Removed backports as it was a source of 404s and might not be strictly necessary for core dependencies.
         fi
         
         # Update package lists (will use the modified sources.list for arm64 builds)
@@ -122,6 +128,7 @@ jobs:
         sudo apt-get install -y pkg-config libssl-dev libglib2.0-dev
         
         # Install AArch64 cross-compilation tools and their dev libraries
+        # libssl-dev:arm64 might be less critical if openssl is vendored, but kept for other potential dependencies.
         if [ "${{ matrix.linux_deps_arch }}" = "arm64" ]; then
           sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross libssl-dev:arm64 pkg-config:arm64
         fi
@@ -146,8 +153,8 @@ jobs:
       run: |
         # Apply platform-specific environment variables/flags if defined in the matrix.
         ${{ matrix.build_flags }}
-        # Build the project in release mode for the current matrix target.
-        cargo build --verbose --release --target=${{ matrix.target }}
+        # Build the project in release mode for the current matrix target, including features.
+        cargo build --verbose --release --target=${{ matrix.target }} ${{ matrix.cargo_features }}
 
     - name: Rename executable
       # Renames the compiled binary to a more descriptive name including the target.
