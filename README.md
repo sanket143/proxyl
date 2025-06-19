@@ -1,6 +1,8 @@
 # Proxyl
-Proxy outgoing requests to alternate servers with fine-grained control
 
+**Proxy outgoing requests to alternate servers with fine-grained control.**
+
+Proxyl allows you to intercept and redirect outgoing network requests based on defined rules. This is useful for development, testing, or debugging scenarios where you need to route specific requests to different endpoints.
 
 ## Setup
 Install using cargo
