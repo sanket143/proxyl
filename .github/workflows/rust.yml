@@ -166,7 +166,7 @@ jobs:
         # Build the project in release mode for the current matrix target, including features.
         cargo build --verbose --release --target=${{ matrix.target }} ${{ matrix.cargo_features }}
 
-    - name: Rename executable
+    - name: Rename executable (Build Job)
       # Renames the compiled binary to a more descriptive name including the target.
       shell: bash # Ensures bash is used for consistent shell commands across OSes.
       run: |
@@ -208,7 +208,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     # Grant necessary permissions for creating releases and uploading assets.
     permissions:
-      contents: write
+      contents: write # This is the crucial line for release creation and asset upload.
     # This job depends on ALL 'build' jobs completing successfully.
     needs: build
 
@@ -242,8 +242,7 @@ jobs:
       # Downloads all artifacts uploaded by the 'build' jobs into a local directory.
       uses: actions/download-artifact@v4 # Updated to v4
       with:
-        # All artifacts will be downloaded into subdirectories within './artifacts',
-        # with each subdirectory named after the artifact's original name.
+        # Download all artifacts into a single 'artifacts' directory.
         path: ./artifacts
 
     - name: Install GitHub CLI
@@ -276,18 +275,21 @@ jobs:
         for ARTIFACT_NAME in "${!asset_map[@]}"; do
             # Get the expected local file name from the map.
             LOCAL_FILE_NAME="${asset_map[$ARTIFACT_NAME]}"
-            # Construct the full path to the downloaded artifact.
-            # download-artifact creates a directory for each artifact name.
-            ARTIFACT_PATH="$ARTIFACTS_DIR/$ARTIFACT_NAME/$LOCAL_FILE_NAME"
+            
+            # The download-artifact@v4 action places artifacts in subdirectories matching their name.
+            # So the actual path will be ./artifacts/<ARTIFACT_NAME>/<ORIGINAL_FILE_NAME_FROM_BUILD_JOB>
+            # The ORIGINAL_FILE_NAME_FROM_BUILD_JOB is 'proxyl' or 'proxyl.exe' initially,
+            # but we renamed it in the build step to match the asset_name.
+            # So, the file is at ARTIFACTS_DIR/$ARTIFACT_NAME/$LOCAL_FILE_NAME (already renamed).
+            DOWNLOADED_FILE_PATH="$ARTIFACTS_DIR/$ARTIFACT_NAME/$LOCAL_FILE_NAME"
 
             # Check if the artifact file exists before attempting to upload.
-            if [ -f "$ARTIFACT_PATH" ]; then
-                echo "Uploading asset: $ARTIFACT_PATH as $LOCAL_FILE_NAME"
+            if [ -f "$DOWNLOADED_FILE_PATH" ]; then
+                echo "Uploading asset: $DOWNLOADED_FILE_PATH"
                 # Use 'gh release upload' to attach the file to the GitHub Release.
-                # '--clobber' allows overwriting if an asset with the same name already exists.
-                # '--asset-name' sets the name of the asset on GitHub.
-                gh release upload "$TAG_NAME" "$ARTIFACT_PATH" --clobber --asset-name "$LOCAL_FILE_NAME"
+                # The asset name is derived from the filename provided.
+                gh release upload "$TAG_NAME" "$DOWNLOADED_FILE_PATH" --clobber
             else
-                echo "Warning: Artifact not found at $ARTIFACT_PATH. Skipping upload for $ARTIFACT_NAME."
+                echo "Warning: Artifact not found at $DOWNLOADED_FILE_PATH. Skipping upload for $ARTIFACT_NAME."
             fi
         done
